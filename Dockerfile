@@ -68,6 +68,14 @@ RUN sed -i \
     's/^remux: false/remux: true/' \
     config/config.yml
 
+RUN sed -i \
+    's/^convert: false/convert: true/' \
+    config/config.yml
+
+RUN sed -i \
+    's/^defaultAudio: false/defaultAudio: false/' \
+    config/config.yml
+
 COPY attach.css /tmp/attach.css
 
 RUN cat /tmp/attach.css >> css/style.css
