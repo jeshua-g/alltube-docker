@@ -62,6 +62,9 @@ RUN composer install \
     --optimize-autoloader \
     --no-dev
 
+# --------------------------------------------------
+# AllTube configuration
+# --------------------------------------------------
 RUN mv config/config.example.yml config/config.yml
 
 RUN sed -i \
@@ -72,6 +75,7 @@ RUN sed -i \
     's/^convert: false/convert: true/' \
     config/config.yml
 
+# Keep normal video downloads as the default
 RUN sed -i \
     's/^defaultAudio: false/defaultAudio: false/' \
     config/config.yml
@@ -80,6 +84,7 @@ COPY attach.css /tmp/attach.css
 
 RUN cat /tmp/attach.css >> css/style.css
 
+# AllTube template cache must be writable
 RUN chmod 777 templates_c
 
 # --------------------------------------------------
@@ -139,6 +144,9 @@ RUN python3 --version \
 # --------------------------------------------------
 COPY --from=alltube /alltube /var/www/alltube
 
+# PHP-FPM runs as nobody
+RUN chown -R nobody:nobody /var/www/alltube
+
 COPY nginx/ /etc/nginx/
 
 COPY init.sh /usr/bin/alltube
@@ -151,10 +159,21 @@ RUN sed -i \
 
 RUN chmod +x /usr/bin/alltube
 
+# --------------------------------------------------
 # PHP-FPM socket
+# --------------------------------------------------
 RUN sed -i \
     's#^listen = .*#listen = /run/php-fpm.sock#' \
     /etc/php84/php-fpm.d/www.conf
+
+# --------------------------------------------------
+# Writable download directory
+# --------------------------------------------------
+RUN mkdir -p /tmp/alltube-downloads \
+    && chown nobody:nobody /tmp/alltube-downloads \
+    && chmod 700 /tmp/alltube-downloads
+
+WORKDIR /tmp/alltube-downloads
 
 EXPOSE 80
 
