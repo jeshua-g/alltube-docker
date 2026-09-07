@@ -27,6 +27,7 @@ ARG ALLTUBE
 RUN apk add --no-cache \
     php84 \
     php84-phar \
+    php84-session \
     php84-curl \
     php84-dom \
     php84-gmp \
@@ -85,6 +86,7 @@ RUN apk add --no-cache \
     ca-certificates \
     php84 \
     php84-fpm \
+    php84-session \
     php84-curl \
     php84-dom \
     php84-gmp \
@@ -101,6 +103,11 @@ RUN apk add --no-cache \
     php84-zip
 
 RUN ln -sf /usr/bin/php84 /usr/bin/php
+
+# --------------------------------------------------
+# Verify PHP session extension
+# --------------------------------------------------
+RUN php -m | grep -i session
 
 # --------------------------------------------------
 # Install modern yt-dlp
@@ -125,6 +132,7 @@ COPY nginx/ /etc/nginx/
 COPY init.sh /usr/bin/alltube
 
 # AllTube's original script uses php-fpm7.
+# Modern Alpine uses php-fpm84.
 RUN sed -i \
     's#/usr/sbin/php-fpm7#/usr/sbin/php-fpm84#g' \
     /usr/bin/alltube
