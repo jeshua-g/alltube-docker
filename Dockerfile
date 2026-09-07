@@ -2,12 +2,26 @@ ARG ALPINE="alpine:3.23"
 ARG YTDLP="2026.08.19"
 ARG ALLTUBE="3.2.0-alpha"
 
-# ---------------------------------------------------------
-# Build AllTube + install yt-dlp
-# ---------------------------------------------------------
-FROM ${ALPINE} AS build
+# --------------------------------------------------
+# Composer
+# --------------------------------------------------
+FROM ${ALPINE} AS composer
 
-ARG YTDLP
+RUN apk add --no-cache \
+    php84 \
+    php84-phar \
+    php84-mbstring \
+    php84-openssl \
+    php84-json \
+    wget
+
+RUN wget https://install.phpcomposer.com/installer -O - | php
+
+# --------------------------------------------------
+# AllTube
+# --------------------------------------------------
+FROM ${ALPINE} AS alltube
+
 ARG ALLTUBE
 
 RUN apk add --no-cache \
@@ -18,6 +32,7 @@ RUN apk add --no-cache \
     php84-gmp \
     php84-gettext \
     php84-intl \
+    php84-json \
     php84-mbstring \
     php84-openssl \
     php84-simplexml \
@@ -25,19 +40,10 @@ RUN apk add --no-cache \
     php84-xml \
     php84-xmlwriter \
     php84-zip \
-    composer \
-    python3 \
-    py3-pip \
-    deno \
-    wget \
-    ca-certificates
+    wget
 
-# Alpine's PHP binary is named php84
-RUN ln -sf /usr/bin/php84 /usr/local/bin/php
+RUN ln -sf /usr/bin/php84 /usr/bin/php
 
-# ---------------------------------------------------------
-# Install AllTube
-# ---------------------------------------------------------
 WORKDIR /tmp
 
 RUN wget \
@@ -46,46 +52,37 @@ RUN wget \
     && tar xzf alltube.tar.gz \
     && mv "alltube-${ALLTUBE}" /alltube
 
+COPY --from=composer /composer.phar /usr/bin/composer
+
 WORKDIR /alltube
 
-RUN cp config/config.example.yml config/config.yml
-
-# Add the custom CSS from the original Docker project
-COPY attach.css /tmp/attach.css
-
-RUN cat /tmp/attach.css >> css/style.css
-
-# Install PHP dependencies
 RUN composer install \
     --no-interaction \
     --optimize-autoloader \
     --no-dev
 
-RUN chmod 777 templates_c/
+RUN mv config/config.example.yml config/config.yml
 
-# ---------------------------------------------------------
-# Install modern yt-dlp
-# ---------------------------------------------------------
-RUN python3 -m pip install \
-    --break-system-packages \
-    --no-cache-dir \
-    "yt-dlp[default]==${YTDLP}"
+COPY attach.css /tmp/attach.css
 
-# Verify versions during Docker build
-RUN python3 --version \
-    && yt-dlp --version \
-    && deno --version
+RUN cat /tmp/attach.css >> css/style.css
 
-# ---------------------------------------------------------
+RUN chmod 777 templates_c
+
+# --------------------------------------------------
 # Final image
-# ---------------------------------------------------------
+# --------------------------------------------------
 FROM ${ALPINE}
+
+ARG YTDLP
 
 RUN apk add --no-cache \
     nginx \
     ffmpeg \
     python3 \
+    py3-pip \
     deno \
+    ca-certificates \
     php84 \
     php84-fpm \
     php84-curl \
@@ -93,6 +90,7 @@ RUN apk add --no-cache \
     php84-gmp \
     php84-gettext \
     php84-intl \
+    php84-json \
     php84-mbstring \
     php84-openssl \
     php84-phar \
@@ -100,38 +98,43 @@ RUN apk add --no-cache \
     php84-tokenizer \
     php84-xml \
     php84-xmlwriter \
-    php84-zip \
-    ca-certificates
+    php84-zip
 
-# AllTube's init script expects the generic PHP command
-RUN ln -sf /usr/bin/php84 /usr/local/bin/php
+RUN ln -sf /usr/bin/php84 /usr/bin/php
 
-# Copy AllTube application
-COPY --from=build /alltube /var/www/alltube
+# --------------------------------------------------
+# Install modern yt-dlp
+# --------------------------------------------------
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    "yt-dlp[default]==${YTDLP}"
 
-# Copy yt-dlp and its Python environment
-COPY --from=build /usr/bin/yt-dlp /usr/bin/yt-dlp
-COPY --from=build /usr/lib/python3.12 /usr/lib/python3.12
+# Verify yt-dlp + Python + Deno
+RUN python3 --version \
+    && yt-dlp --version \
+    && deno --version
 
-# Copy nginx configuration
+# --------------------------------------------------
+# AllTube files
+# --------------------------------------------------
+COPY --from=alltube /alltube /var/www/alltube
+
 COPY nginx/ /etc/nginx/
 
-# Copy startup script
 COPY init.sh /usr/bin/alltube
 
-# The original init.sh expects php-fpm7.
-# Modern Alpine uses php-fpm84.
+# AllTube's original script uses php-fpm7.
 RUN sed -i \
     's#/usr/sbin/php-fpm7#/usr/sbin/php-fpm84#g' \
     /usr/bin/alltube
 
-# Configure PHP-FPM to use the socket expected by nginx
+RUN chmod +x /usr/bin/alltube
+
+# PHP-FPM socket
 RUN sed -i \
     's#^listen = .*#listen = /run/php-fpm.sock#' \
     /etc/php84/php-fpm.d/www.conf
-
-# Ensure startup script is executable
-RUN chmod +x /usr/bin/alltube
 
 EXPOSE 80
 
