@@ -64,6 +64,10 @@ RUN composer install \
 
 RUN mv config/config.example.yml config/config.yml
 
+RUN sed -i \
+    's/^remux: false/remux: true/' \
+    config/config.yml
+
 COPY attach.css /tmp/attach.css
 
 RUN cat /tmp/attach.css >> css/style.css
