@@ -3,12 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: alltube
     restart: unless-stopped
-    environment:
-      TITLE: AllTube
-      CONVERT: "ON"
-      STREAM: "ON"
-      REMUX: "ON"
     ports:
       - "80:80"
